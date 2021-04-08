@@ -48,23 +48,9 @@ class UserAgents(Base):
 
         # Add custom User-Agent list
         print("[*]\tAdding conditions for bad User-Agents...")
-        self.workingfile.write("\n\n\t# Bad User Agents: %s\n" % datetime.now().strftime("%Y%m%d-%H:%M:%S"))
-        self.workingfile.write("\t# Sources via: %s & %s\n" % ('@curi0usJack/@violentlydave', 'Obtained via Malware Kit'))
+        # self.workingfile.write("\n\n\t# Bad User Agents: %s\n" % datetime.now().strftime("%Y%m%d-%H:%M:%S"))
+        # self.workingfile.write("\t# Sources via: %s & %s\n" % ('@curi0usJack/@violentlydave', 'Obtained via Malware Kit'))
 
-        count = 0
-        for agent in agents:
-            if agent not in self.agent_list and agent != '':
-                self.workingfile.write(REWRITE['COND_AGENT'].format(AGENT=agent))
-                self.agent_list.append(agent)  # Keep track of all things added
-                count += 1
+        new_agents = [a for a in agents if a != '']
 
-        self.workingfile.write("\t# Bad User Agent Count: %d\n" % count)
-
-        # Ensure there are conditions to catch
-        if count > 0:
-            # Add rewrite rule... I think this should help performance
-            self.workingfile.write("\n\t# Add RewriteRule for performance\n")
-            self.workingfile.write(REWRITE['END_COND'])
-            self.workingfile.write(REWRITE['RULE'])
-
-        return self.agent_list
+        return [*self.agent_list, *new_agents]

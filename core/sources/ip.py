@@ -49,10 +49,9 @@ class IP(Base):
 
         # Add IPs obtained via Malware Kit's and other sources
         print("[*]\tAdding static IPs obtained via Malware Kit's and other sources...")
-        self.workingfile.write("\n\n\t# IPs obtained via Malware Kit's and other sources: %s\n" % datetime.now().strftime("%Y%m%d-%H:%M:%S"))
+        # self.workingfile.write("\n\n\t# IPs obtained via Malware Kit's and other sources: %s\n" % datetime.now().strftime("%Y%m%d-%H:%M:%S"))
 
-        count = 0
-        for ip in ips:
+        def fix_ip(ip):
             # Convert /31 and /32 CIDRs to single IP
             ip = re.sub('/3[12]', '', ip)
 
@@ -60,20 +59,7 @@ class IP(Base):
             # This is assmuming that if a portion of the net
             # was seen, we want to avoid the full netblock
             ip = re.sub('\.[0-9]{1,3}/(2[456789]|30)', '.0/24', ip)
+            return ip
 
-            # Check if the current IP/CIDR has been seen
-            if ip not in self.ip_list and ip != '':
-                self.workingfile.write(REWRITE['COND_IP'].format(IP=ip))
-                self.ip_list.append(ip)  # Keep track of all things added
-                count += 1
-
-        self.workingfile.write("\t# IP Count: %d\n" % count)
-
-        # Ensure there are conditions to catch
-        if count > 0:
-            # Add rewrite rule... I think this should help performance
-            self.workingfile.write("\n\t# Add RewriteRule for performance\n")
-            self.workingfile.write(REWRITE['END_COND'])
-            self.workingfile.write(REWRITE['RULE'])
-
-        return self.ip_list
+        new_ips = [ fix_ip(ip) for ip in ips if ip != '' ]
+        return [*self.ip_list, *new_ips]

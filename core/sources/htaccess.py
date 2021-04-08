@@ -64,10 +64,6 @@ class HTAccess(Base):
 
         print("[*]\tWriting @curi0usJack's redirect rules...")
 
-        # Keep count of the IP/User-Agents documented
-        count_ip = 0
-        count_ua = 0
-
         # Skip the header comments since we write our own version
         # This means that the line offset is: 12
         htaccess_file = htaccess_file[11:]
@@ -108,22 +104,11 @@ class HTAccess(Base):
             'tor':             htaccess_file[(452-START):-1]  # Go until EOF
         }
 
-
-        # Let's start by writing the file headers
-        for line in file_headers:
-            # Add user-supplied redirect destination
-            if 'DESTINATIONURL' in line:
-                line = re.sub('\|DESTINATIONURL\|', self.args.destination, line)
-
-            self.workingfile.write(line + '\n')
-
-
-        # Now let's write each group, but only those the user has not
-        # excluded
-        for group in file_groups.keys():
+        # Now let's write each group, but only those the user has not excluded
+        for group, content in file_groups.items():
             # Now we need cross reference our exclude list and the keys...
             if all(x not in self.args.exclude for x in group.split(',')):
-                for line in file_groups[group]:
+                for line in content:
 
                     # Handle one-off rule that points to 'fortinet'
                     if 'http://www.fortinet.com/?' in line:
@@ -133,27 +118,17 @@ class HTAccess(Base):
                     if 'RewriteRule' in line:
                         line = REWRITE['RULE']
 
-                    self.workingfile.write(line + '\n')
-
                     # Check if line is a RewriteCond
                     if 'RewriteCond' in line:
                         # Check for IPs to keep a list for de-duping
                         if 'expr' in line:
                             self.ip_list.append(line.split("'")[1])
-                            count_ip += 1
 
                         # Check for User-Agents to keep a list for de-duping
                         if 'HTTP_USER_AGENT' in line:
-                            count_ua += 1
                             if '"' in line:  # This is specific to one of the user-agents
                                 self.agent_list.append(re.search('"(.+)"', line).group(1))
                             else:
                                 self.agent_list.append(re.search('(\^.+\$)', line).group(1))
-
-                    
-
-
-        self.workingfile.write("\t# @curi0usJack IP Count:         %d\n" % count_ip)
-        self.workingfile.write("\t# @curi0usJack User Agent Count: %d\n" % count_ua)
 
         return (self.ip_list, self.agent_list)

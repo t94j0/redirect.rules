@@ -71,34 +71,23 @@ class Azure(Base):
         except:
             return self.ip_list
 
-        count = 0
-        for subnet in azure_subnets:
-            if 'IpRange Subnet' in subnet:
-                ip = re.search('"(.+?)"', subnet.strip()).group(1)
-                # Convert /31 and /32 CIDRs to single IP
-                ip = re.sub('/3[12]', '', ip)
+        def fix_ip(ip):
+            # Convert /31 and /32 CIDRs to single IP
+            ip = re.sub('/3[12]', '', ip)
 
-                # Convert lower-bound CIDRs into /24 by default
-                # This is assmuming that if a portion of the net
-                # was seen, we want to avoid the full netblock
-                ip = re.sub('\.[0-9]{1,3}/(2[456789]|30)', '.0/24', ip)
+            # Convert lower-bound CIDRs into /24 by default
+            # This is assmuming that if a portion of the net
+            # was seen, we want to avoid the full netblock
+            ip = re.sub('\.[0-9]{1,3}/(2[456789]|30)', '.0/24', ip)
+            return ip
 
-                # Check if the current IP/CIDR has been seen
-                if ip not in self.ip_list:
-                    self.workingfile.write(REWRITE['COND_IP'].format(IP=ip))
-                    self.ip_list.append(ip)  # Keep track of all things added
-                    count += 1
+        def get_ip(html):
+            return re.search('"(.+?)"', html.strip()).group(1)
 
-        self.workingfile.write("\t# Microsoft Azure IP Count: %d\n" % count)
-
-        # Ensure there are conditions to catch
-        if count > 0:
-            # Add rewrite rule... I think this should help performance
-            self.workingfile.write("\n\t# Add RewriteRule for performance\n")
-            self.workingfile.write(REWRITE['END_COND'])
-            self.workingfile.write(REWRITE['RULE'])
-
-        return self.ip_list
+        subnets = (s for s in azure_subnets if 'IpRange Subnet' in s)
+        new_ips_raw = (get_ip(h) for h in subnets)
+        new_ips = [ fix_ip(ip) for ip in new_ips_raw if ip != '' ]
+        return [*self.ip_list, *new_ips]
 
 
 
@@ -154,10 +143,10 @@ class Office365(Base):
         o365_ips  = []
         o365_urls = []
 
+        print(o365_networks)
+
         # Loop over the JSON objects
         # This is gross...
-        count_ip   = 0
-        count_host = 0
         for network in o365_networks:
             # Make sure we have IPs/URLs to handle
             if any(x in network.keys() for x in ['ips', 'urls']):
@@ -175,7 +164,6 @@ class Office365(Base):
                         if url not in self.host_list and url != '':
                             self.workingfile.write(REWRITE['COND_HOST'].format(HOSTNAME=url))
                             self.host_list.append(url)
-                            count_host += 1
 
                 # If we have IPs, lets document them
                 if 'ips' in network.keys():
@@ -193,16 +181,5 @@ class Office365(Base):
                             if ip not in self.ip_list and ip != '':
                                 self.workingfile.write(REWRITE['COND_IP'].format(IP=ip))
                                 self.ip_list.append(ip)  # Keep track of all things added
-                                count_ip += 1
-
-        self.workingfile.write("\t# Office 365 Host Count: %d\n" % count_host)
-        self.workingfile.write("\t# Office 365 IP Count:   %d\n" % count_ip)
-
-        # Ensure there are conditions to catch
-        if count_ip > 0 or count_host > 0:
-            # Add rewrite rule... I think this should help performance
-            self.workingfile.write("\n\t# Add RewriteRule for performance\n")
-            self.workingfile.write(REWRITE['END_COND'])
-            self.workingfile.write(REWRITE['RULE'])
 
         return (self.ip_list, self.host_list)

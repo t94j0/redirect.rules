@@ -57,32 +57,22 @@ class OracleCloud(Base):
         except:
             return self.ip_list
 
-        count = 0
+        def fix_ip(ip):
+            # Convert /31 and /32 CIDRs to single IP
+            ip = re.sub('/3[12]', '', ip)
+
+            # Convert lower-bound CIDRs into /24 by default
+            # This is assmuming that if a portion of the net
+            # was seen, we want to avoid the full netblock
+            ip = re.sub('\.[0-9]{1,3}/(2[456789]|30)', '.0/24', ip)
+            return ip
+
+
+        new_ips = [] 
         for region in oracle_networks['regions']:
-            self.workingfile.write("\n\t# Oracle Cloud Region: %s\n" % region['region'])
             for cidr in region['cidrs']:
-                ip = cidr['cidr']
-                # Convert /31 and /32 CIDRs to single IP
-                ip = re.sub('/3[12]', '', ip)
+                ip = fix_ip(cidr['cidr'])
+                if ip != '':
+                    new_ips.append(ip)
 
-                # Convert lower-bound CIDRs into /24 by default
-                # This is assmuming that if a portion of the net
-                # was seen, we want to avoid the full netblock
-                ip = re.sub('\.[0-9]{1,3}/(2[456789]|30)', '.0/24', ip)
-
-                # Check if the current IP/CIDR has been seen
-                if ip not in self.ip_list and ip != '':
-                    self.workingfile.write(REWRITE['COND_IP'].format(IP=ip))
-                    self.ip_list.append(ip)  # Keep track of all things added
-                    count += 1
-
-        self.workingfile.write("\t# Oracle Cloud IP Count:   %d\n" % count)
-
-        # Ensure there are conditions to catch
-        if count > 0:
-            # Add rewrite rule... I think this should help performance
-            self.workingfile.write("\n\t# Add RewriteRule for performance\n")
-            self.workingfile.write(REWRITE['END_COND'])
-            self.workingfile.write(REWRITE['RULE'])
-
-        return self.ip_list
+        return [*self.ip_list, *new_ips]

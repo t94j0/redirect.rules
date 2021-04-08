@@ -47,12 +47,8 @@ class Misc(Base):
             return self.ip_list
 
         print("[*]\tAdding Miscellaneous Sources...")
-        self.workingfile.write("\n\n\t# Misc Sources: %s\n" % datetime.now().strftime("%Y%m%d-%H:%M:%S"))
 
-        count = 0
-        for obj in misc_list:
-            obj = obj.split('-')
-            ip  = obj[0]
+        def fix_ip(ip):
             # Convert /31 and /32 CIDRs to single IP
             ip = re.sub('/3[12]', '', ip)
 
@@ -60,20 +56,8 @@ class Misc(Base):
             # This is assmuming that if a portion of the net
             # was seen, we want to avoid the full netblock
             ip = re.sub('\.[0-9]{1,3}/(2[456789]|30)', '.0/24', ip)
+            return ip
 
-            # Check if the current IP/CIDR has been seen
-            if ip not in self.ip_list and ip != '':
-                self.workingfile.write(REWRITE['COND_IP'].format(IP=ip))
-                self.ip_list.append(ip)  # Keep track of all things added
-                count += 1
-
-        self.workingfile.write("\t# Misc IP Count: %d\n" % count)
-
-        # Ensure there are conditions to catch
-        if count > 0:
-            # Add rewrite rule... I think this should help performance
-            self.workingfile.write("\n\t# Add RewriteRule for performance\n")
-            self.workingfile.write(REWRITE['END_COND'])
-            self.workingfile.write(REWRITE['RULE'])
-
-        return self.ip_list
+        ips_gen = (fix_ip(o.split('-')[0]) for o in misc_list)
+        new_ips = [ ip for ip in ips_gen if ip != '' ]
+        return [*self.ip_list, *new_ips]

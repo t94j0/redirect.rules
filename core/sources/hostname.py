@@ -4,9 +4,6 @@ import os
 import re
 from datetime import datetime
 
-# Import static data
-from core.support import REWRITE
-
 # Import parent class
 from core.base import Base
 
@@ -49,22 +46,9 @@ class Hostname(Base):
 
         # Add IPs obtained via Malware Kit's and other sources
         print("[*]\tAdding static Hostnames obtained via Malware Kit's and other sources...")
-        self.workingfile.write("\n\n\t# Hostnames obtained via Malware Kit's and other sources: %s\n" % datetime.now().strftime("%Y%m%d-%H:%M:%S"))
+        # self.workingfile.write("\n\n\t# Hostnames obtained via Malware Kit's and other sources: %s\n" % datetime.now().strftime("%Y%m%d-%H:%M:%S"))
 
-        count = 0
-        for host in hostnames:
-            if host not in self.host_list and host != '':
-                self.workingfile.write(REWRITE['COND_HOST'].format(HOSTNAME=host))
-                self.host_list.append(host)  # Keep track of all things added
-                count += 1
+        new_hosts = [ h for h in hostnames if h != '' ]
+        # self.workingfile.write("\t# Hostname Count: %d\n" % count)
 
-        self.workingfile.write("\t# Hostname Count: %d\n" % count)
-
-        # Ensure there are conditions to catch
-        if count > 0:
-            # Add rewrite rule... I think this should help performance
-            self.workingfile.write("\n\t# Add RewriteRule for performance\n")
-            self.workingfile.write(REWRITE['END_COND'])
-            self.workingfile.write(REWRITE['RULE'])
-
-        return self.host_list
+        return [*self.host_list, *new_hosts]
