@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from typing import List
 import os
 from datetime import datetime
 
@@ -8,25 +9,19 @@ from core.support import REWRITE
 
 # Import parent class
 from core.base import Base
+from core.type import Block
 
 
 class UserAgents(Base):
     """
     User-Agents class to write static list of User-Agents from
     core/static/agents.py
-
-    :param workingfile: Open file object where rules are written
-    :param agent_list:  List of seen User-Agents
     """
 
-    def __init__(self, workingfile, agent_list):
-        self.workingfile = workingfile
-        self.agent_list  = agent_list
-
+    def __init__(self):
         self.return_data = self._process_source()
 
-
-    def _get_source(self):
+    def _get_source(self) -> List[str]:
         # Read in static source file from static/ dir
         agents = []
         pwd = os.path.dirname(os.path.realpath(__file__))
@@ -38,19 +33,14 @@ class UserAgents(Base):
 
         return agents
 
-
-    def _process_source(self):
+    def _process_source(self) -> Block:
         try:
             # Get the source data
             agents = self._get_source()
         except:
-            return self.agent_list
+            return Block()
 
         # Add custom User-Agent list
         print("[*]\tAdding conditions for bad User-Agents...")
-        # self.workingfile.write("\n\n\t# Bad User Agents: %s\n" % datetime.now().strftime("%Y%m%d-%H:%M:%S"))
-        # self.workingfile.write("\t# Sources via: %s & %s\n" % ('@curi0usJack/@violentlydave', 'Obtained via Malware Kit'))
-
-        new_agents = [a for a in agents if a != '']
-
-        return [*self.agent_list, *new_agents]
+        new_agents = {a for a in agents if a != ''}
+        return Block(agents=new_agents)

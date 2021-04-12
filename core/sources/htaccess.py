@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+from core.type import Block
+from core.support import REWRITE
+from core.base import Base
+from typing import List, Set
 import re
 import requests
 from datetime import datetime
@@ -8,11 +12,6 @@ from datetime import datetime
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-# Import parent class
-from core.base import Base
-
-# Import static data
-from core.support import REWRITE
 
 class HTAccess(Base):
     """
@@ -20,7 +19,6 @@ class HTAccess(Base):
     https://gist.github.com/curi0usJack/971385e8334e189d93a6cb4671238b10
     Current link as of: March 27, 2020
 
-    :param workingfile: Open file object where rules are written
     :param headers:     HTTP headers
     :param timeout:     HTTP timeout
     :param ip_list:     List of seen IPs
@@ -28,21 +26,15 @@ class HTAccess(Base):
     :param args:        Command line args
     """
 
-    def __init__(self, workingfile, headers, timeout, ip_list, agent_list, args):
-        self.workingfile = workingfile
-        self.headers     = headers
-        self.timeout     = timeout
-        self.ip_list     = ip_list
-        self.agent_list  = agent_list
-        self.args        = args
+    def __init__(self, headers, timeout, args):
+        self.headers = headers
+        self.timeout = timeout
+        self.args = args
 
         self.return_data = self._process_source()
 
-
-    def _get_source(self):
-        # Write comments to working file
+    def _get_source(self) -> List[str]:
         print("[*]\tPulling @curi0usJack's redirect rules...")
-        self.workingfile.write("\n\n\t# @curi0usJack .htaccess: %s\n" % datetime.now().strftime("%Y%m%d-%H:%M:%S"))
 
         htaccess_file = requests.get(
             'https://gist.githubusercontent.com/curi0usJack/971385e8334e189d93a6cb4671238b10/raw/13b11edf67f746bdd940ff3f2e9b8dc18f8ad7d4/.htaccess',
@@ -54,23 +46,21 @@ class HTAccess(Base):
         # Decode from a bytes object and split into a list of lines
         return htaccess_file.content.decode('utf-8').split('\n')
 
-
-    def _process_source(self):
+    def _process_source(self) -> Block:
         try:
             # Get the source data
             htaccess_file = self._get_source()
         except:
-            return (self.ip_list, self.agent_list)
+            return Block()
 
         print("[*]\tWriting @curi0usJack's redirect rules...")
-
         # Skip the header comments since we write our own version
         # This means that the line offset is: 12
         htaccess_file = htaccess_file[11:]
 
         # Line offsets
         START = 12
-        STOP  = 11  # Slicing
+        STOP = 11  # Slicing
 
         # Grab the file headers first
         file_headers = htaccess_file[(12-START):(21-STOP)]
@@ -81,7 +71,8 @@ class HTAccess(Base):
         # This data is based on the current raw link, but is subject
         # to changes/updates depending on updated raw links
         file_groups = {
-            'amazon,aws,microsoft,azure': htaccess_file[(22-START):(31-STOP)],  # Class A Exclusions
+            # Class A Exclusions
+            'amazon,aws,microsoft,azure': htaccess_file[(22-START):(31-STOP)],
             'amazon,aws':      htaccess_file[(32-START):(114-STOP)],
             'forcepoint':      htaccess_file[(115-START):(119-STOP)],
             'domaintools':     htaccess_file[(120-START):(122-STOP)],
@@ -104,6 +95,8 @@ class HTAccess(Base):
             'tor':             htaccess_file[(452-START):-1]  # Go until EOF
         }
 
+        ip_list: Set[str] = set()
+        agent_list: Set[str] = set()
         # Now let's write each group, but only those the user has not excluded
         for group, content in file_groups.items():
             # Now we need cross reference our exclude list and the keys...
@@ -112,7 +105,8 @@ class HTAccess(Base):
 
                     # Handle one-off rule that points to 'fortinet'
                     if 'http://www.fortinet.com/?' in line:
-                        line = re.sub('http://www.fortinet.com/\? +', '${REDIR_TARGET}\t', line)
+                        line = re.sub('http://www.fortinet.com/\? +',
+                                      '${REDIR_TARGET}\t', line)
 
                     # Standardize RewriteRule format across the @curi0usjack htaccess rules and our own defined in support.py
                     if 'RewriteRule' in line:
@@ -122,13 +116,15 @@ class HTAccess(Base):
                     if 'RewriteCond' in line:
                         # Check for IPs to keep a list for de-duping
                         if 'expr' in line:
-                            self.ip_list.append(line.split("'")[1])
+                            ip_list.add(line.split("'")[1])
 
                         # Check for User-Agents to keep a list for de-duping
                         if 'HTTP_USER_AGENT' in line:
                             if '"' in line:  # This is specific to one of the user-agents
-                                self.agent_list.append(re.search('"(.+)"', line).group(1))
+                                agent_list.add(
+                                    re.search('"(.+)"', line).group(1))
                             else:
-                                self.agent_list.append(re.search('(\^.+\$)', line).group(1))
+                                agent_list.add(
+                                    re.search('(\^.+\$)', line).group(1))
 
-        return (self.ip_list, self.agent_list)
+        return Block(ips=ip_list, agents=agent_list)

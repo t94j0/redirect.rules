@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 
-from typing import List
+from multiprocessing import Pool
+from core.type import Block
+from functools import reduce
+from core.sources.utils import fix_ip
+from core.base import Base
+from core.support import REWRITE
+from typing import List, Set
 import os
 import re
 import requests
@@ -12,102 +18,103 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 # Import static data
-from core.support import REWRITE
 
 # Import parent class
-from core.base import Base
 
 
-def get_ips_radb(asn_list: List[str], exclude: str):
-    asn_list = [x.upper() for x in asn_list]
+class RADBProcessor:
+    def __init__(self, exclude):
+        self.exclude = exclude
 
-    def fix_ip(ip):
-        # Convert /31 and /32 CIDRs to single IP
-        ip = re.sub('/3[12]', '', ip)
-
-        # Convert lower-bound CIDRs into /24 by default
-        # This is assmuming that if a portion of the net
-        # was seen, we want to avoid the full netblock
-        ip = re.sub('\.[0-9]{1,3}/(2[456789]|30)', '.0/24', ip)
-        return ip
-
-    def get_whois(asn):
+    def _get_whois(self, asn):
         # Unfortunately here, it seems we must use subprocess as some
         # whois libraries were acting funky...
-        whois_cmd  = 'whois -h whois.radb.net -- -i origin %s | grep "route:" | awk \'{print $2}\'' % (asn)
-        whois_data = subprocess.check_output(whois_cmd, shell=True).decode('utf-8')
+        whois_cmd = 'whois -h whois.radb.net -- -i origin %s | grep "route:" | awk \'{print $2}\'' % (
+            asn)
+        whois_data = subprocess.check_output(
+            whois_cmd, shell=True).decode('utf-8')
         return whois_data
 
-    new_ips = []
-    for as_ in asn_list:
-        if any(x.upper() in as_ for x in exclude):
-            continue  # Skip ASN if excluded
+    def __call__(self, as_) -> Set[str]:
+        new_ips: Set[str] = set()
 
+        if any(x.upper() in as_ for x in self.exclude):
+            return set()
         [name, asn] = as_.split('_')
 
         print(f"[*]\tPulling {asn} -- {name} via RADB...")
-        whois_data = get_whois(asn)
+        try:
+            whois_data = self._get_whois(asn)
+            for ip in whois_data.split('\n'):
+                ip = fix_ip(ip)
+                if ip != '':
+                    new_ips.add(ip)
+        except:
+            pass
+        return new_ips
 
-        for ip in whois_data.split('\n'):
-            ip = fix_ip(ip)
-            if ip != '':
-                new_ips.append(ip)
 
-    return new_ips
+class BGPViewProcessor:
+    def __init__(self, exclude, headers, timeout):
+        self.exclude = exclude
+        self.headers = headers
+        self.timeout = timeout
 
-def get_ips_bgpview(asn_list, exclude, get_data):
-    asn_list = [x.upper() for x in asn_list]
+    def _get_bgpview(self, asn):
+        return requests.get(
+            'https://api.bgpview.io/asn/%s/prefixes' % asn,
+            headers=self.headers,
+            timeout=self.timeout,
+            verify=False
+        ).json()
 
-    def fix_ip(ip):
-        # Convert /31 and /32 CIDRs to single IP
-        ip = re.sub('/3[12]', '', ip)
-
-        # Convert lower-bound CIDRs into /24 by default
-        # This is assmuming that if a portion of the net
-        # was seen, we want to avoid the full netblock
-        ip = re.sub('\.[0-9]{1,3}/(2[456789]|30)', '.0/24', ip)
-        return ip
-
-    new_ips = []
-    for as_ in asn_list:
-        if any(x.upper() in as_ for x in exclude):
-            continue  # Skip ASN if excluded
-
+    def __call__(self, as_) -> Set[str]:
+        if any(x.upper() in as_ for x in self.exclude):
+            return set()
         [name, asn] = as_.split('_')
 
-        try:
-            asn_data = get_data(asn)
-        except:
-            continue
-
-        # Write comments to working file
         print("[*]\tPulling %s -- %s via BGPView..." % (asn, name))
-
+        new_ips: Set[str] = set()
         try:
+            asn_data = self._get_bgpview(asn)
             for network in asn_data['data']['ipv4_prefixes']:
                 ip = fix_ip(network['prefix'])
                 if ip != '':
-                    new_ips.append(ip)
-        except KeyError:
+                    new_ips.add(ip)
+        except:
             pass
-    return new_ips
+        return new_ips
+
+
+def _get_ips_asn(asn_list, processor) -> Set[str]:
+    asn_list = [x.upper() for x in asn_list]
+    with Pool(8) as p:
+        asns = p.map(processor, asn_list)
+    return reduce(lambda a, b: a | b, asns)
+
+
+def get_ips_bgpview(asn_list, exclude, headers, timeout) -> Set[str]:
+    processor = BGPViewProcessor(exclude, headers, timeout)
+    return _get_ips_asn(asn_list, processor)
+
+
+def get_ips_radb(asn_list, exclude) -> Set[str]:
+    processor = RADBProcessor(exclude)
+    return _get_ips_asn(asn_list, processor)
+
 
 class RADB(Base):
     """
     Add companies by ASN - via whois.radb.net
 
-    :param workingfile: Open file object where rules are written
-    :param ip_list:     List of seen IPs
     :param args:        Command line args
+    :param excludes:    List of exclusions
     """
 
-    def __init__(self, workingfile, ip_list, args):
-        self.workingfile = workingfile
-        self.ip_list     = ip_list
-        self.args        = args
-
+    def __init__(self, args, excludes):
+        self.args = args
+        self.excludes = excludes
         self.return_data = self._process_source()
-
 
     def _get_source(self):
         # Read in static source file from static/ dir
@@ -121,41 +128,34 @@ class RADB(Base):
 
         return asn_list
 
-
-    def _process_source(self):
+    def _process_source(self) -> Block:
         try:
             # Get the source data
             asn_list = self._get_source()
         except:
-            return self.ip_list
+            return Block()
 
-        new_ips = get_ips_radb(asn_list, self.args.exclude)
-        return [*self.ip_list, *new_ips]
-
+        new_ips = get_ips_radb(asn_list, self.excludes)
+        return Block(ips=new_ips)
 
 
 class BGPView(Base):
     """
     Add companies by ASN - via BGPView
 
-    :param workingfile: Open file object where rules are written
     :param headers:     HTTP headers
     :param timeout:     HTTP timeout
-    :param ip_list:     List of seen IPs
     :param args:        Command line arguments
     """
 
-    def __init__(self, workingfile, headers, timeout, ip_list, args):
-        self.workingfile = workingfile
-        self.headers     = headers
-        self.timeout     = timeout
-        self.ip_list     = ip_list
-        self.args        = args
+    def __init__(self, headers, timeout, args):
+        self.headers = headers
+        self.timeout = timeout
+        self.args = args
 
         self.return_data = self._process_source()
 
-
-    def _get_source(self):
+    def _get_source(self) -> List[str]:
         # Read in static source file from static/ dir
         asn_list = []
         pwd = os.path.dirname(os.path.realpath(__file__))
@@ -167,24 +167,13 @@ class BGPView(Base):
 
         return asn_list
 
-
-    def _get_data(self, asn):
-        asn_data = requests.get(
-            'https://api.bgpview.io/asn/%s/prefixes' % asn,
-            headers=self.headers,
-            timeout=self.timeout,
-            verify=False
-        )
-
-        # Return JSON object
-        return asn_data.json()
-
     def _process_source(self):
         try:
             # Get the source data
             asn_list = self._get_source()
         except:
-            return self.ip_list
+            return Block()
 
-        new_ips = get_ips_bgpview(asn_list, self.args.exclude, self._get_data)
-        return [*self.ip_list, *new_ips]
+        new_ips = get_ips_bgpview(
+            asn_list, self.args.exclude, self.headers, self.timeout)
+        return Block(ips=new_ips)
