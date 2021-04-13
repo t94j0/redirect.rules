@@ -86,21 +86,21 @@ class BGPViewProcessor:
         return new_ips
 
 
-def _get_ips_asn(asn_list, processor) -> Set[str]:
+def _get_ips_asn(threads: int, asn_list, processor) -> Set[str]:
     asn_list = [x.upper() for x in asn_list]
-    with Pool(8) as p:
+    with Pool(threads) as p:
         asns = p.map(processor, asn_list)
     return reduce(lambda a, b: a | b, asns)
 
 
-def get_ips_bgpview(asn_list, exclude, headers, timeout) -> Set[str]:
+def get_ips_bgpview(asn_list, threads: int, exclude, headers, timeout) -> Set[str]:
     processor = BGPViewProcessor(exclude, headers, timeout)
-    return _get_ips_asn(asn_list, processor)
+    return _get_ips_asn(threads, asn_list, processor)
 
 
-def get_ips_radb(asn_list, exclude) -> Set[str]:
+def get_ips_radb(asn_list, threads: int, exclude) -> Set[str]:
     processor = RADBProcessor(exclude)
-    return _get_ips_asn(asn_list, processor)
+    return _get_ips_asn(threads, asn_list, processor)
 
 
 class RADB(Base):
@@ -135,7 +135,7 @@ class RADB(Base):
         except:
             return Block()
 
-        new_ips = get_ips_radb(asn_list, self.excludes)
+        new_ips = get_ips_radb(asn_list, self.args.threads, self.excludes)
         return Block(ips=new_ips)
 
 
@@ -175,5 +175,5 @@ class BGPView(Base):
             return Block()
 
         new_ips = get_ips_bgpview(
-            asn_list, self.args.exclude, self.headers, self.timeout)
+            asn_list, self.args.threads, self.args.exclude, self.headers, self.timeout)
         return Block(ips=new_ips)

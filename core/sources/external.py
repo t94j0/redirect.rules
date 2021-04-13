@@ -133,8 +133,9 @@ class ASNFile(Base):
     :param timeout:       HTTP timeout
     """
 
-    def __init__(self, _file, excludes, headers, timeout):
+    def __init__(self, _file, threads: int, excludes, headers, timeout):
         self._file = _file
+        self.threads = threads
         self.headers = headers
         self.timeout = timeout
         self.return_data = self._process_source()
@@ -158,6 +159,6 @@ class ASNFile(Base):
             return Block()
 
         asn_list = [x.upper() for x in asn_list]
-        ips = get_ips_radb(asn_list, self.excludes) | get_ips_bgpview(
-            asn_list, self.excludes, self.headers, self.timeout)
+        ips = get_ips_radb(asn_list, self.threads, self.excludes) | get_ips_bgpview(
+            asn_list, self.threads, self.excludes, self.headers, self.timeout)
         return Block(ips=ips)

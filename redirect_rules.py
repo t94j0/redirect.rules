@@ -109,11 +109,13 @@ def get_arguments() -> argparse.Namespace:
     parser.add_argument('--user-agent', default='Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:74.0) Gecko/20100101 Firefox/74.0', type=str,
                         help='HTTP user agent')
     parser.add_argument('--timeout', default=10, type=int, help='HTTP timeout')
+    parser.add_argument('--threads', default=4, type=int,
+                        help='Number of threads in worker pool')
     parser.add_argument('--apache', action='store_true',
                         help='Set Apache output')
     parser.add_argument('--satellite', action='store_true',
                         help='Set Satellite output.')
-    parser.add_argument('--verbose',        action='store_true',
+    parser.add_argument('--verbose', action='store_true',
                         help='Enable verbose output.')
     args = parser.parse_args()
     return args
@@ -200,7 +202,6 @@ if __name__ == '__main__':
         print('[*]\tFull exclusion list can be found at the end of the')
         print('   \tredirect.rules file.\n')
 
-    print(args)
     http_headers = {'User-Agent': args.user_agent}
 
     blocklist = Block()
@@ -344,7 +345,7 @@ if __name__ == '__main__':
             # Make sure the file is valid
             if os.path.isfile(_file):
                 source = Source(
-                    'asn-file', [_file, excludes, http_headers, args.timeout])
+                    'asn-file', [_file,  args.threads, excludes, http_headers, args.timeout])
                 blocklist |= source.process_data()
 
     print("\n[+]\tFile/Path redirection and catch-all examples commented at bottom of file.\n")
