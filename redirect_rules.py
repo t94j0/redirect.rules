@@ -38,20 +38,6 @@ except (ModuleNotFoundError, ImportError) as e:
 
 __version__ = '1.2.4'
 
-## Global files
-WORKINGFILE_NAME = '/tmp/redirect.rules'
-
-## HTTP requests config
-HTTP_TIMEOUT = 10
-HTTP_HEADERS = {
-    'User-Agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:74.0) Gecko/20100101 Firefox/74.0"
-}
-
-## De-dupe data storage
-FULL_IP_LIST = []  # De-dupe ips
-FULL_HOST_LIST = []  # De-dupe hosts
-FULL_AGENT_LIST = []  # De-dupe agents
-
 ## Exclusion Keywords
 # This will allow us to identify explicit exclusions
 KEYWORDS = [
@@ -90,7 +76,7 @@ regex = re.compile(
     r'(?:/?|[/?]\S+)$', re.IGNORECASE)
 
 
-def get_arguments():
+def get_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Dynamically generate redirect.rules file -- v{VERS}".format(VERS=__version__))
     parser.add_argument('-d', '--destination', type=str,
@@ -120,17 +106,20 @@ def get_arguments():
                         help='Provide one or more external User-Agent files to use as source data.')
     parser.add_argument('--output', type=str, default='/tmp/redirect.rules',
                         help='File to write (default /tmp/redirect.rules)')
-    parser.add_argument('--verbose',        action='store_true',
-                        help='Enable verbose output.')
+    parser.add_argument('--user-agent', default='Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:74.0) Gecko/20100101 Firefox/74.0', type=str,
+                        help='HTTP user agent')
+    parser.add_argument('--timeout', default=10, type=int, help='HTTP timeout')
     parser.add_argument('--apache', action='store_true',
                         help='Set Apache output')
     parser.add_argument('--satellite', action='store_true',
                         help='Set Satellite output.')
+    parser.add_argument('--verbose',        action='store_true',
+                        help='Enable verbose output.')
     args = parser.parse_args()
     return args
 
 
-def sanity_checks(args):
+def sanity_checks(args) -> None:
     # Set output type
     if (not args.apache and not args.satellite) or (args.apache and args.satellite):
         print('[!]\tMust select either --apache or --satellite')
@@ -211,12 +200,15 @@ if __name__ == '__main__':
         print('[*]\tFull exclusion list can be found at the end of the')
         print('   \tredirect.rules file.\n')
 
+    print(args)
+    http_headers = {'User-Agent': args.user_agent}
+
     blocklist = Block()
 
     #> -----------------------------------------------------------------------------
     # Write @curi0usJack's .htaccess rules: https://gist.github.com/curi0usJack/971385e8334e189d93a6cb4671238b10
     if 'htaccess' not in excludes:  # Exclude keyword
-        source = Source('htaccess', [HTTP_HEADERS, HTTP_TIMEOUT, args])
+        source = Source('htaccess', [http_headers, args.timeout, args])
         blocklist |= source.process_data()
 
     #> -----------------------------------------------------------------------------
@@ -247,7 +239,7 @@ if __name__ == '__main__':
     # Add Tor exit nodes: https://check.torproject.org/exit-addresses
     # __dynamic__
     if all(x not in excludes for x in ['tor', 'dynamic']):  # Exclude keywords
-        source = Source('tor', [HTTP_HEADERS, HTTP_TIMEOUT])
+        source = Source('tor', [http_headers, args.timeout])
         blocklist |= source.process_data()
 
     #> -----------------------------------------------------------------------------
@@ -255,7 +247,7 @@ if __name__ == '__main__':
     # __dynamic__
     # Exclude keywords
     if all(x not in excludes for x in ['amazon', 'aws', 'dynamic']):
-        source = Source('aws', [HTTP_HEADERS, HTTP_TIMEOUT])
+        source = Source('aws', [http_headers, args.timeout])
         blocklist |= source.process_data()
 
     #> -----------------------------------------------------------------------------
@@ -271,7 +263,7 @@ if __name__ == '__main__':
     # __dynamic__
     # Exclude keywords
     if all(x not in excludes for x in ['microsoft', 'azure', 'dynamic']):
-        source = Source('azure', [HTTP_HEADERS, HTTP_TIMEOUT])
+        source = Source('azure', [http_headers, args.timeout])
         blocklist |= source.process_data()
 
     #> -----------------------------------------------------------------------------
@@ -283,8 +275,8 @@ if __name__ == '__main__':
     #     source = Source(
     #         'office365',
     #         [  # Params object
-    #             HTTP_HEADERS,
-    #             HTTP_TIMEOUT,
+    #             http_headers,
+    #             args.timeout,
     #         ]
     #     )
     #     blocklist |= source.process_data()
@@ -294,7 +286,7 @@ if __name__ == '__main__':
     # __dynamic__
     # Exclude keywords
     if all(x not in excludes for x in ['orcale', 'oraclecloud', 'dynamic']):
-        source = Source('oraclecloud', [HTTP_HEADERS, HTTP_TIMEOUT, ])
+        source = Source('oraclecloud', [http_headers, args.timeout, ])
         blocklist |= source.process_data()
 
     #> -----------------------------------------------------------------------------
@@ -308,7 +300,7 @@ if __name__ == '__main__':
     # Add companies by ASN - via BGPView
     # __static__
     if all(x not in excludes for x in ['asn', 'bgpview', 'static']):
-        source = Source('bgpview', [HTTP_HEADERS, HTTP_TIMEOUT, args])
+        source = Source('bgpview', [http_headers, args.timeout, args])
         blocklist |= source.process_data()
 
     #> -----------------------------------------------------------------------------
@@ -352,7 +344,7 @@ if __name__ == '__main__':
             # Make sure the file is valid
             if os.path.isfile(_file):
                 source = Source(
-                    'asn-file', [_file, excludes, HTTP_HEADERS, HTTP_TIMEOUT])
+                    'asn-file', [_file, excludes, http_headers, args.timeout])
                 blocklist |= source.process_data()
 
     print("\n[+]\tFile/Path redirection and catch-all examples commented at bottom of file.\n")
