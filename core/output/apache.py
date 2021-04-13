@@ -40,6 +40,8 @@ class Apache(Output):
         self.write_agent_rules(hosts, len(agents) == 0)
         self.write_host_rules(agents, True)
 
+        self.write('RewriteRule\t\t\t^.*$\t\t\t${REDIR_TARGET} [L,R=302]\n')
+
         #> -----------------------------------------------------------------------------
         # Rule clean up and file finalization
 
