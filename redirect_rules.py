@@ -165,6 +165,20 @@ def sanity_checks(args) -> None:
         print('[!]\tThe following arguments are required: -d/--destination')
         sys.exit(1)
 
+    def is_file_writable(path: str):
+        if os.path.exists(path):
+            if os.path.isfile(path):
+                return os.access(path, os.W_OK)
+            else:
+                return False
+        pdir = os.path.dirname(path)
+        if not pdir:
+            pdir = '.'
+        return os.access(pdir, os.W_OK)
+    if not is_file_writable(args.output):
+        print(f'[!] File {args.output} is not writable')
+        sys.exit(1)
+
 
 def print_header() -> None:
     print(f'''
