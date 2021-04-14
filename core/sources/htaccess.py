@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 from core.type import Block
 from core.support import REWRITE
 from core.base import Base
@@ -36,15 +37,9 @@ class HTAccess(Base):
     def _get_source(self) -> List[str]:
         print("[*]\tPulling @curi0usJack's redirect rules...")
 
-        htaccess_file = requests.get(
-            'https://gist.githubusercontent.com/curi0usJack/971385e8334e189d93a6cb4671238b10/raw/13b11edf67f746bdd940ff3f2e9b8dc18f8ad7d4/.htaccess',
-            headers=self.headers,
-            timeout=self.timeout,
-            verify=False
-        )
-
-        # Decode from a bytes object and split into a list of lines
-        return htaccess_file.content.decode('utf-8').split('\n')
+        pwd = os.path.dirname(os.path.realpath(__file__))
+        with open(pwd + '/../static/htaccess.txt', 'r') as _file:
+            return _file.readlines()
 
     def _process_source(self) -> Block:
         try:
@@ -72,7 +67,6 @@ class HTAccess(Base):
         # to changes/updates depending on updated raw links
         file_groups = {
             # Class A Exclusions
-            'amazon,aws,microsoft,azure': htaccess_file[(22-START):(31-STOP)],
             'amazon,aws':      htaccess_file[(32-START):(114-STOP)],
             'forcepoint':      htaccess_file[(115-START):(119-STOP)],
             'domaintools':     htaccess_file[(120-START):(122-STOP)],

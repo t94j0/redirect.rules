@@ -80,11 +80,11 @@ class Apache(Output):
             " RewriteRule\t\t\t\t^((?!\\/example\\.zip).)*$\t\t${REDIR_TARGET}\t[L,R=302]\n")
 
     def add_comment(self, comment: str) -> None:
-        self.write(f'\t#{comment}')
+        self.write(f'#{comment}')
 
     def write_redirect_header(self, destination: str) -> None:
-        self.write(f"\tDefine REDIR_TARGET {destination}\n\n")
-        self.write("\tRewriteEngine On\n")
+        self.write(f"Define REDIR_TARGET {destination}\n\n")
+        self.write("RewriteEngine On\n")
         self.write("\tRewriteOptions Inherit\n\n")
 
     def write_ip_rules(self, ips: List[str], end=False) -> None:
