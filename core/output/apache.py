@@ -85,7 +85,7 @@ class Apache(Output):
     def write_redirect_header(self, destination: str) -> None:
         self.write(f"Define REDIR_TARGET {destination}\n\n")
         self.write("RewriteEngine On\n")
-        self.write("\tRewriteOptions Inherit\n\n")
+        self.write("RewriteOptions Inherit\n\n")
 
     def write_ip_rules(self, ips: List[str], end=False) -> None:
         if len(ips) == 0:
