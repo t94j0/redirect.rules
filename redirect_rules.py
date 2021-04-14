@@ -36,7 +36,7 @@ except (ModuleNotFoundError, ImportError) as e:
     sys.exit(1)
 
 
-__version__ = '1.2.4'
+__version__ = '2.0.0'
 
 ## Exclusion Keywords
 # This will allow us to identify explicit exclusions

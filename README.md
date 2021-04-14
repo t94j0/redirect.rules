@@ -32,52 +32,54 @@ sudo ./setup.sh
 ## Usage
 
 ```
-usage: redirect_rules.py [-h] [-d DESTINATION]
-                         [--exclude EXCLUDE [EXCLUDE ...]]
-                         [--exclude-file EXCLUDE_FILE] [--exclude-list]
-                         [--ip-file IP_FILE [IP_FILE ...]]
+usage: redirect_rules.py [-h] [-d DESTINATION] [--exclude EXCLUDE [EXCLUDE ...]]
+                         [--exclude-file EXCLUDE_FILE] [--exclude-list] [--ip-file IP_FILE [IP_FILE ...]]
                          [--asn-file ASN_FILE [ASN_FILE ...]]
                          [--hostname-file HOSTNAME_FILE [HOSTNAME_FILE ...]]
-                         [--useragent-file USERAGENT_FILE [USERAGENT_FILE ...]]
-                         [--verbose]
+                         [--useragent-file USERAGENT_FILE [USERAGENT_FILE ...]] [--output OUTPUT]
+                         [--user-agent USER_AGENT] [--timeout TIMEOUT] [--threads THREADS] [--apache]
+                         [--satellite] [--verbose]
 
-Dynamically generate redirect.rules file -- v1.2.4
+Dynamically generate redirect.rules file -- v2.0.0
 
 optional arguments:
   -h, --help            show this help message and exit
   -d DESTINATION, --destination DESTINATION
-                        Destination for redirects (with the protocol, e.g., https://redirect.here/index.php).
+                        Destination for redirects (with the protocol, e.g.,
+                        https://redirect.here/index.php).
   --exclude EXCLUDE [EXCLUDE ...]
-                        Pass in one or more data sources and/or explicit
-                        IP/Host/User-Agent's to exclude. Run the `--exclude-
-                        list` command to list all data source keywords that
-                        can be used. Keywords and explicit strings should be
-                        space delimited. Example Usage: `--exclude agents radb
-                        35.0.0.0/8`
+                        Pass in one or more data sources and/or explicit IP/Host/User-Agent's to exclude.
+                        Run the `--exclude-list` command to list all data source keywords that can be used.
+                        Keywords and explicit strings should be space delimited. Example Usage: `--exclude
+                        agents radb 35.0.0.0/8`
   --exclude-file EXCLUDE_FILE
-                        File containing items/group keywords to exclude (line
-                        separated).
-  --exclude-list        List all possible exclusions.
+                        File containing items/keywords to exclude (line separated).
+  --exclude-list        List possible keyword exclusions.
   --ip-file IP_FILE [IP_FILE ...]
-                        Provide one or more IP files to use as source data.
+                        Provide one or more external IP files to use as source data.
   --asn-file ASN_FILE [ASN_FILE ...]
-                        Provide one or more ASN files to use as source data.
+                        Provide one or more external ASN files to use as source data.
   --hostname-file HOSTNAME_FILE [HOSTNAME_FILE ...]
-                        Provide one or more Hostname files to use as source
-                        data.
+                        Provide one or more external Hostname files to use as source data.
   --useragent-file USERAGENT_FILE [USERAGENT_FILE ...]
-                        Provide one or more User-Agent files to use as source
-                        data.
+                        Provide one or more external User-Agent files to use as source data.
+  --output OUTPUT       File to write (default /tmp/redirect.rules)
+  --user-agent USER_AGENT
+                        HTTP user agent
+  --timeout TIMEOUT     HTTP timeout
+  --threads THREADS     Number of threads in worker pool
+  --apache              Set Apache output
+  --satellite           Set Satellite output.
   --verbose             Enable verbose output.
 ```
 
 #### Example Run
 ```
-> python3 redirect_rules.py -d https://test.com
+> python3 redirect_rules.py --apache -d https://test.com
 
     ----------------------------------
       Redirect Rules Generation Tool
-                  v1.2.4
+                  v2.0.0
     ----------------------------------
 
 [*]     Pulling @curi0usJack's redirect rules...
@@ -112,14 +114,17 @@ redirect_rules.py executed in 24.62 seconds.
 
 ```bash
 # Example exclusion usage - Exclude Tor, Microsoft Azure, and an explicit CIDR:
-  python3 redirect_rules.py -d https://test.com --exclude tor azure 35.0.0.0/8
+  python3 redirect_rules.py --apache -d https://test.com --exclude tor azure 35.0.0.0/8
 
 # Example external source file usage - Include external IP list for redirection:
-  python3 redirect_rules.py -d https://test.com --ip-file new_ip_list.txt
+  python3 redirect_rules.py --apache -d https://test.com --ip-file new_ip_list.txt
 
 # Example usage to generate rules for a single external source
 # This excludes all sources provided by redirect_rules and only uses the external source:
-  python3 redirect_rules.py -d https://test.com --exclude htaccess dynamic static --ip-file new_ip_list.txt
+  python3 redirect_rules.py --apache -d https://test.com --exclude htaccess dynamic static --ip-file new_ip_list.txt
+
+# Example usage to generate rules and output results to Apache2 folder
+  python3 redirect_rules.py --apache -d https://test.com --output /etc/apache2/redirect.rules
 ```
 
 #### Exclusion List
@@ -205,4 +210,4 @@ redirect_rules.py executed in 24.62 seconds.
 * Reorder groups by most likely to be seen
 * Sort IPs/Hosts/Agents in each grouping
 * Build an index at the top of redirect.rules based on starting line number of each grouping
-* Custmoize rewrite rule(s) to redirect differently based on user-agent
+* Customize rewrite rule(s) to redirect differently based on user-agent
