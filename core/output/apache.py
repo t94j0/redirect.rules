@@ -36,9 +36,9 @@ class Apache(Output):
         self.add_comment("\n")
 
         self.write_redirect_header(args.destination)
-        self.write_ip_rules(ips, len(hosts) == 0)
-        self.write_agent_rules(hosts, len(agents) == 0)
-        self.write_host_rules(agents, True)
+        self.write_ip_rules(ips, len(agents) == 0)
+        self.write_agent_rules(agents, len(hosts) == 0)
+        self.write_host_rules(hosts, True)
 
         self.write('RewriteRule\t\t\t^.*$\t\t\t${REDIR_TARGET} [L,R=302]\n')
 
@@ -102,6 +102,7 @@ class Apache(Output):
                     f'RewriteCond\t\t\t\texpr\t\t\t\t\t"-R \'{ip}\'"\t[OR]\n')
 
     def write_agent_rules(self, agents: List[str], end=False) -> None:
+        print(agents)
         if len(agents) == 0:
             return
         if end:
