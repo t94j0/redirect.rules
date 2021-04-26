@@ -10,7 +10,7 @@ class Satellite(Output):
         super(Satellite, self).__init__(path)
 
     def __call__(self, args, block: Block):
-        ips, agents, _ = block.to_list()
+        ips, _, agents = block.to_list()
         # hosts is not implemented yet
         out = {
             'blacklist_iprange': ips,
